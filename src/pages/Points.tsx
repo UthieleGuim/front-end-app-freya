@@ -1,38 +1,88 @@
 import { useEffect, useState } from "react";
-import { useNavigation } from "@react-navigation/native";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import * as Location from 'expo-location';
 import { Feather as Icon } from '@expo/vector-icons';
 import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Callout, Marker } from "react-native-maps";
+import api from "../services/api";
+import { LocalSvg, SvgXml } from "react-native-svg";
 
 interface Item {
-  id: number;
-  title: string;
-  image_url: string;
+  code: number;
+  description: string;
 }
 
-interface Points {
-  id: number;
+interface Point {
+  _id: string;
   name: string;
-  image: string;
-  image_url: string;
-  latitude: number;
-  longitude: number;
+  latitude: string;
+  longitude: string;
+  items: Item[];
 }
 
 interface Params {
-  uf: string;
   city: string;
 }
 
+const items = [
+ {
+    image: require('../assets/lampadas.png'),
+    code: 1,
+    description: 'Lâmpadas'
+  },
+  {
+    image: require('../assets/baterias.png'),
+    code: 2,
+    description: 'Pilha e Baterias'
+  },
+  {
+    image: require('../assets/papeis-papelao.png'),
+    code: 3,
+    description: 'Papéis e Papelão'
+  },
+  {
+    image: require('../assets/eletronicos.png'),
+    code: 4,
+    description: 'Resíduos Eletrônicos'
+  },
+  {
+    image: require('../assets/organincos.png'),
+    code: 5,
+    description: 'Resíduos Orgânicos'
+  },
+  {
+    image: require('../assets/oleo.png'),
+    code: 6,
+    description: 'Óleo de Cozinha'
+  },
+  {
+    image: require('../assets/metal.png'),
+    code: 7,
+    description: 'Metal'
+  },
+  {
+    image: require('../assets/plastico.png'),
+    code: 8,
+    description: 'Plástico'
+  },
+  {
+    image: require('../assets/vidro.png'),
+    code: 9,
+    description: 'Vidro'
+  },
+]
+
 export function Points() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [points, setPoints] = useState<Points[]>([]);
+  const [points, setPoints] = useState<Point[]>([]);
+  const [pointsFilter, setPointsFilter] = useState<Point[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
 
   const navigation = useNavigation();
+  const route = useRoute()
+
+  const { city } = route.params as Params
   
   async function loadPosition() {
     const { granted } = await Location.requestForegroundPermissionsAsync();
@@ -43,25 +93,64 @@ export function Points() {
     }
   }
 
-  useEffect(() => {
-    loadPosition();
-  }, []);
-
   function handleNavigateBack() {
     navigation.goBack();
   }
 
-  function handleNavigateToDetail(id: number) {
-    // console.log(id)
-      navigation.navigate('detail');
+  function handleNavigateToDetail(id: string) {
+    navigation.navigate('detail', { id });
+  } 
+
+  function handleNavigateToFaq() {
+    navigation.navigate('faq');
+  } 
+  
+  function handleSelectItems(code: number) {
+    const alreadySelected = selectedItems.findIndex((item: number) => item === code);
+
+    if(alreadySelected >= 0) {
+      const filteredItems = selectedItems.filter(item => item !== code);
+
+      setSelectedItems(filteredItems);
+    } else {
+      setSelectedItems([ ...selectedItems, code ]);
+    }
   }
+
+  useEffect(() => {
+    const filterPoints = selectedItems.length === 0
+    ? points 
+    : points.filter(point =>
+        selectedItems.every(selectedItemCode =>
+          point.items.some((item: Item) => item.code === selectedItemCode)
+        )
+      );
+  
+    setPointsFilter(filterPoints);
+  }, [selectedItems]);
+
+  useEffect(() => {
+    loadPosition();
+
+    api.get(`/points/city/${city}`).then(res => {
+      setPoints(res.data);
+      setPointsFilter(res.data);
+    });
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <TouchableOpacity onPress={handleNavigateBack}>
-          <Icon name="arrow-left" size={32} color='#34cb79' />
-        </TouchableOpacity>
+        <View style={styles.containerIcon}>
+          <TouchableOpacity onPress={handleNavigateBack} style={styles.buttonFaqIcon}>
+            <Icon name="arrow-left" size={32} color='#34CB79' />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleNavigateToFaq} style={styles.buttonFaqIcon}>
+            <Icon name="help-circle" size={32} color='#34CB79' /> 
+            <Text style={styles.titleFaqIcon}>FAQ</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.title}>Bem vindo.</Text>
         <Text style={styles.description}>Encontre no mapa um ponto de coleta.</Text>
@@ -77,33 +166,41 @@ export function Points() {
                 longitudeDelta: 0.005,
               }}
             >
-              {/* {points.map(point =>(
+              {pointsFilter.map(point => (
                 <Marker
-                key={point.id}
-                style={styles.mapMarker}
-                onPress={() => handleNavigateToDetail(point.id)}
-                coordinate={{
-                  latitude: point.latitude,
-                  longitude: point.longitude,
-                }}
-               />
-              ))} */}
-                <Marker
-                style={styles.mapMarker}
-                onPress={() => handleNavigateToDetail(1)}
-                coordinate={{
-                  latitude: location.coords.latitude,
-                  longitude: location.coords.longitude,
-                }}>
-                <Callout>
-                  <View style={styles.mapMarkerContainer}>
-                    {/* <Image style={styles.mapMarkerImage} source={{ uri: point.image_url }} /> */}
-                    <Text style={styles.mapMarkerTitle}>Teste</Text>
-                  </View> 
-                </Callout>
-              </Marker>
+                  key={point._id}
+                  onPress={() => handleNavigateToDetail(point._id)}
+                  coordinate={{
+                    latitude: parseFloat(point.latitude),
+                    longitude: parseFloat(point.longitude),
+                  }}
+                  title={point.name}
+                />
+              ))}
             </MapView>
           )}
+        </View>
+        <View style={styles.itemsContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20}}
+          >
+            {items.map(item => (
+              <TouchableOpacity 
+                key={String(item.code)} 
+                style={[
+                    styles.item,
+                    selectedItems.includes(item.code) ? styles.selectedItem : {}
+                ]} 
+                onPress={() => handleSelectItems(item.code)}
+                activeOpacity={0.6}
+              >
+              <Image source={item.image}/>
+                <Text style={styles.itemTitle}>{item.description}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       </View>
     </SafeAreaView>
@@ -121,6 +218,23 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal:32,
     paddingTop: 20,
+  }, 
+  containerIcon: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingRight:8,
+  },
+  buttonFaqIcon: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  }, 
+  titleFaqIcon: {
+    color: '#34CB79',
+    fontSize:20,
+    fontFamily: 'Roboto_700Bold',
   }, 
   title: {
     fontSize:20,
@@ -144,15 +258,10 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-  }, 
-  mapMarker: {
-    width: 90,
-    height: 80,
-  }, 
+  },
   mapMarkerContainer: {
     width: 90,
-    height: 70,
-    borderBlockColor: '#34CB79',
+    height: 100,
     flexDirection: 'column',
     borderRadius: 8,
     overflow: 'hidden',
@@ -161,10 +270,9 @@ const styles = StyleSheet.create({
   mapMarkerImage: {
     width: 90,
     height: 45,
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   }, 
   mapMarkerTitle: {
-    flex: 1,
     fontFamily: 'Roboto_400Regular',
     fontSize: 13,
     lineHeight: 23,
@@ -179,7 +287,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderWidth: 2,
     borderColor: '#EEE',
-    height: 120,
+    height: 100,
     width: 120,
     borderRadius: 8,
     paddingHorizontal: 16,
@@ -187,7 +295,7 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     marginRight: 8,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     textAlign: 'center',
   },
   selectedItem: {

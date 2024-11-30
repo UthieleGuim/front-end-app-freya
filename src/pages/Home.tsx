@@ -1,4 +1,4 @@
-import {  Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
+import {  Alert, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
 import { Feather as Icon} from '@expo/vector-icons'
 import { useState } from "react";
 import { useNavigation } from "@react-navigation/native";
@@ -10,7 +10,11 @@ export function Home() {
     const navigation = useNavigation();
   
     function handleNavigateToPoints() {
-      navigation.navigate('points');
+        if(!city) {
+            return Alert.alert("Obrigatório", "Necessário digita uma cidade!")
+        }
+
+        navigation.navigate('points', { city });
     }
 
     return (
@@ -22,7 +26,7 @@ export function Home() {
                 <Text style={styles.description}>Ajudamos pessoas a encontrarem pontos de coleta de forma eficiente.</Text>
             </View>
 
-            <TextInput style={styles.input} placeholder="Digite sua cidade"/>
+            <TextInput style={styles.input} placeholder="Digite sua cidade" value={city} autoCorrect={false} onChangeText={setCity} />
 
             <TouchableOpacity style={styles.button} onPress={handleNavigateToPoints}>
                 <View style={styles.buttonIcon}>
